@@ -1,57 +1,110 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import pickle
-import plotly.express as px
+import os
 
-# -------------------------------
-# Load Data & Model
-# -------------------------------
-DATA_PATH = "student_scores (1) (2).csv"
-MODEL_PATH = "Student_model (6).pkl"
+# --------------------------------------------------
+# Paths for inbuilt files
+# --------------------------------------------------
+DEFAULT_MODEL = "Student_model (6).pkl"
+DEFAULT_CSV = "student_scores (1) (2).csv"
 
-df = pd.read_csv(DATA_PATH)
+st.set_page_config(page_title="Score Predictor", layout="centered")
 
-with open(MODEL_PATH, "rb") as file:
-    model = pickle.load(file)
+# --------------------------------------------------
+# Helper
+# --------------------------------------------------
+def load_model(path: str):
+    with open(path, "rb") as f:
+        return pickle.load(f)
 
-# -------------------------------
-# Streamlit App Configuration
-# -------------------------------
-st.set_page_config(page_title="Student Score Prediction App", layout="wide")
+def extract_model(obj):
+    """If pickle contains {'model':..., ...} return obj['model'] else return original."""
+    if isinstance(obj, dict) and "model" in obj:
+        return obj["model"]
+    return obj
 
-st.title("🎓 Student Score Dashboard & Prediction App")
+# --------------------------------------------------
+# Load CSV (preview only)
+# --------------------------------------------------
+df = None
+if os.path.exists(DEFAULT_CSV):
+    try:
+        df = pd.read_csv(DEFAULT_CSV)
+    except:
+        df = None
 
-menu = ["Dashboard", "Predict Score"]
-choice = st.sidebar.selectbox("Navigation", menu)
+# --------------------------------------------------
+# Load Model
+# --------------------------------------------------
+model_obj = None
+if os.path.exists(DEFAULT_MODEL):
+    try:
+        model_obj = load_model(DEFAULT_MODEL)
+    except Exception as e:
+        st.error(f"Could not load model: {e}")
+else:
+    st.error("Model file is missing! Upload Student_model (3).pkl inside your project folder.")
+    st.stop()
 
-# -----------------------------------------
-# Dashboard
-# -----------------------------------------
-if choice == "Dashboard":
-    st.header("📊 Dataset Overview")
-    st.dataframe(df)
+model = extract_model(model_obj)
 
-    st.subheader("📌 Select Column to Visualize")
-    numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
+# --------------------------------------------------
+# UI
+# --------------------------------------------------
+st.title("🎯 Student Score Predictor")
 
-    if numeric_cols.any():
-        col = st.selectbox("Select Column", numeric_cols)
-        fig = px.histogram(df, x=col, nbins=20)
-        st.plotly_chart(fig, use_container_width=True)
+if df is not None:
+    st.subheader("📘 Dataset Preview")
+    st.dataframe(df.head(5))
+else:
+    st.info("Could not load dataset preview. Ensure student_scores (1).csv exists.")
 
-        st.subheader("Correlation Heatmap")
-        fig2 = px.imshow(df.corr(), text_auto=True)
-        st.plotly_chart(fig2, use_container_width=True)
+st.markdown("---")
+st.header("Enter Details for Prediction")
 
-# -----------------------------------------
-# Prediction
-# -----------------------------------------
-elif choice == "Predict Score":
-    st.header("🎯 Predict Student Score")
+# --------------------------------------------------
+# Only 3 Features (As You Requested)
+# --------------------------------------------------
+col1, col2, col3 = st.columns(3)
 
-    # Assuming model needs only Study Hours
-    study_hours = st.number_input("Study Hours", min_value=0.0, max_value=15.0, step=0.5)
+with col1:
+    Hours_Studied = st.number_input("Hours Studied", min_value=0.0, value=5.0, step=0.5)
 
-    if st.button("Predict"):
-        prediction = model.predict([[study_hours]])
-        st.success(f"Predicted Score: {prediction[0]:.2f}")
+with col2:
+    Attendance = st.number_input("Attendance (%)", min_value=0.0, value=85.0, step=1.0)
+
+with col3:
+    Assignments = st.number_input("Assignments Submitted", min_value=0, value=8, step=1)
+
+# Prepare 3-feature input
+input_df = pd.DataFrame([{
+    "Hours_Studied": Hours_Studied,
+    "Attendance": Attendance,
+    "Assignments_Submitted": Assignments
+}])
+
+st.subheader("🔍 Input Preview")
+st.dataframe(input_df)
+
+# --------------------------------------------------
+# Predict Button
+# --------------------------------------------------
+if st.button("Predict Score"):
+    try:
+        X = input_df.values  # always 3-column input
+        pred = model.predict(X)
+        result = pred[0]
+
+        st.success(f"📊 Predicted Score: *{result}*")
+
+    except Exception as e:
+        st.error("❌ Prediction failed!")
+        st.exception(e)
+
+# --------------------------------------------------
+# Footer
+# --------------------------------------------------
+st.markdown("---")
+st.caption("This app uses exactly *3 input features* and automatically loads the inbuilt model & dataset.")
