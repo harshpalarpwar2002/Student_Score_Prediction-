@@ -7,7 +7,7 @@ import plotly.express as px
 # Load Data & Model
 # -------------------------------
 DATA_PATH = "student_scores.csv"
-MODEL_PATH = "Student_model.pkl"
+MODEL_PATH = "Student_model (6).pkl"
 
 df = pd.read_csv(DATA_PATH)
 
